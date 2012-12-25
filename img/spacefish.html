@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js"> <!--<![endif]-->
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <title>This is my first EAR attempt</title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width">
+
+        <!-- Place favicon.ico and apple-touch-icon.png in the root directory -->
+
+        <link rel="stylesheet" href="css/normalize.css">
+        <link rel="stylesheet" href="css/initialize.css">
+        <style>
+            h1, h2 {
+                text-align: center;
+                color: white;
+            }
+        </style>
+        <script src="js/vendor/game.modernizr-2.6.2.min.js"></script>
+        <script>
+
+        // The all-important beget function from Javascript: the Good Parts
+        if (typeof Object.beget !== 'function') {
+            Object.beget = function (o) {
+                var F = function () {};
+                F.prototype = o;
+                return new F();
+            };
+        }
+
+
+
+            /*
+                *
+                    *   Global Variables
+                *
+            */
+
+
+            var canvas = null;
+            var ctx = null;
+            var bufferCanvas = null;
+            var bufferCanvasCtx = null;
+
+            var foo = null;  // Yes, foo!  For all your throwaway variable needs
+        
+            var game = new function() {
+                this.mode = "start";
+                this.startText = "Press any key to start";
+                this.restartText = "Press any key to restart";
+                this.score = null;
+                this.scoreArray = [500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 6000, 7000, 8000, 9000, 10000, 12000, 14000, 16000, 18000, 20000, 25000, 30000, 35000, 40000, 45000, 50000];
+                this.scoreArrayPos = 0;
+                this.lives = null;
+                this.level = null;
+            };
+
+            var level = new function() {
+                this.timer = null;
+                this.xBackgroundShift = 0;
+                this.imgShiftVal = 0;
+                this.extraLifeTextPos = 0;
+                    // Object Arrays
+                this.enemyArray = [];
+                this.blastArray = [];
+                this.orbArray = [];
+                this.scoreDisplayArray = [];
+                    // Intervals
+                this.animInt = null;
+                this.countInt = null;
+                this.enemyInt = null;
+                this.imgShiftInt = null;
+            };
+
+            var hero = null;
+
+
+
+
+
+            /*
+                *
+                    *   Objects
+                *
+            */
+
+
+
+            function spaceShip() {
+                this.w = 120;
+                this.h = 60;
+                this.x = 0;
+                this.y = canvas.height/2 - this.h/2;
+                this.color = "white";
+                this.weapon = "peaShooter";
+                this.defense = "";
+                this.defenseTimer = 0;
+                this.maxDefenseTimer = 0;
+                this.weaponTimer = 0;
+                this.maxWeaponTimer = 300;
+                this.imgSrcA = "img/spacefish/spaceShipA.png";
+                this.imgSrcB = "img/spacefish/spaceShipB.png";
+                this.imgSrcShieldA = "img/spacefish/spaceShipShieldA.png";
+                this.imgSrcShieldB = "img/spacefish/spaceShipShieldB.png";
+                this.imgSrcMegaA = "img/spacefish/spaceShipMegaA.png";
+                this.imgSrcMegaB = "img/spacefish/spaceShipMegaB.png";
+                this.fire = function() {
+                    switch (this.weapon) {
+                        case "peaShooter":
+                            level.blastArray[level.blastArray.length] = new peaShooterBlast();
+                            break;
+                        case "hellfire":
+                            level.blastArray[level.blastArray.length] = new hellfire();
+                            level.blastArray[level.blastArray.length] = new hellfire();
+                            break;
+                        case "dualLaser":
+                            level.blastArray[level.blastArray.length] = new dualLaser(20);
+                            level.blastArray[level.blastArray.length] = new dualLaser(-20);
+                            break;
+                        case "bouncyBall":
+                            level.blastArray[level.blastArray.length] = new bouncyBall(-10);
+                            level.blastArray[level.blastArray.length] = new bouncyBall(0);
+                            level.blastArray[level.blastArray.length] = new bouncyBall(10);
+                            break;
+                        case "shockwave":
+                            level.blastArray[level.blastArray.length] = new shockwave();
+                            break;
+                        case "homingMissile":
+                            level.blastArray[level.blastArray.length] = new homingMissile();
+                            break;
+                    };
+                };
+                this.itemUpdate = function(newWeapon) {
+                    eval("foo = new " + newWeapon + "()");
+                    switch (foo.type) {
+                        case "weapon":
+                            this.weapon = newWeapon;
+                            this.weaponTimer = foo.timer;
+                            this.maxWeaponTimer = foo.timer;
+                            break;
+                        case "defense":
+                            this.defense = newWeapon;
+                            this.w = 145;
+                            this.defenseTimer = foo.timer;
+                            this.maxDefenseTimer = foo.timer;
+                            break;
+                        case "special":
+                            this.defense = "mega";
+                            this.h = 75;
+                            break;
+                    }
+                };
+                this.die = function () {
+                    game.lives--;
+                    if (game.lives < 0) {
+                        gameOver();
+                    }
+                    else {
+                        playLevel();
+                    }
+                };
+            };
+
+            function itemOrb(item, x, y) {
+                this.radius = 20;
+                this.x = x;
+                this.y = y;
+                eval("foo = new " + item + "()"); // foo gets assigned the item object
+                this.color = foo.color;
+                this.type = foo.type;
+                this.orbImg = foo.orbImg;
+                this.weapon = item;
+                this.velx = -10;
+                this.updatePos = function() {
+                    this.x += this.velx;
+                };
+            }
+
+
+
+
+            /*
+                *
+                    *   Enemies
+                *
+             */
+
+
+
+            function bigBloater() {
+                this.name = "Bill";
+                this.w = 300;
+                this.h = 150;
+                this.x = canvas.width;
+                this.y = Math.random() * canvas.height - this.h;
+                this.color = "green";
+                this.velx = -25;
+                this.value = 20;
+                this.imgSrcA = "img/spacefish/bigBloaterA.png";
+                this.imgSrcB = "img/spacefish/bigBloaterB.png";
+                this.itemDrop = "mega";
+                this.updatePos = function() {
+                    this.x += this.velx;
+                }
+                this.getHitBy = function(i, j) {
+                    kill(i, j);
+                }
+            }
+
+            function speedyBlue() {
+                this.name = "Sam";
+                this.w = 150;
+                this.h = 75;
+                this.x = canvas.width;
+                this.y = Math.random() * canvas.height - this.h;
+                this.color = "blue";
+                this.velx = -35;
+                this.value = 30;
+                this.imgSrcA = "img/spacefish/speedyBlueA.png";
+                this.imgSrcB = "img/spacefish/speedyBlueB.png";
+                this.itemDrop = "dualLaser";
+                this.updatePos = function() {
+                    this.x += this.velx;
+                }
+                this.getHitBy = function(i, j) {
+                    kill(i, j);
+                }
+            }
+
+            function sinusoidSwimmer() {
+                this.name = "Luciano";
+                this.w = 200;
+                this.h = 300;
+                this.x = canvas.width;
+                this.y = (Math.random() * canvas.height/2) + 100;
+                this.color = "yellow";
+                this.velx = -25;
+                this.value = 40;
+                this.imgSrcA = "img/spacefish/sinusoidSwimmerA.png";
+                this.imgSrcB = "img/spacefish/sinusoidSwimmerB.png";
+                this.itemDrop = "shockwave";
+                this.updatePos = function() {
+                    this.x += this.velx;
+                    var sin = Math.sin(this.x * 2.5) * 80;
+                    this.y += sin;
+                }
+                this.getHitBy = function(i, j) {
+                    kill(i, j);
+                }
+            }
+
+            function homingFish() {
+                this.name = "Homer";
+                this.w = 230;
+                this.h = 115;
+                this.x = canvas.width;
+                this.y = Math.random() * canvas.height - this.h;
+                this.color = "red";
+                this.velx = -35;
+                this.value = 50;
+                this.imgSrcA = "img/spacefish/homingFishA.png";
+                this.imgSrcB = "img/spacefish/homingFishB.png";
+                this.itemDrop = "homingMissile";
+                this.updatePos = function() {
+                    this.x += this.velx;
+                    var home = ((this.y + this.h/2) > hero.y)? -10 : 10;
+                    this.y += home;
+                }
+                this.getHitBy = function(i, j) {
+                    kill(i, j);
+                }
+            }
+
+            function splitFishBig() {
+                this.name = "Darren";
+                this.w = 250;
+                this.h = 250;
+                this.x = canvas.width;
+                this.y = Math.random() * canvas.height - this.h;
+                this.color = "purple";
+                this.velx = -15;
+                this.value = 60;
+                this.imgSrcA = "img/spacefish/splitFishBigA.png";
+                this.imgSrcB = "img/spacefish/splitFishBigB.png";
+                this.itemDrop = "";
+                this.updatePos = function() {
+                    this.x += this.velx;
+                }
+                this.getHitBy = function(i, j) {
+                    level.enemyArray[level.enemyArray.length] = new splitFishMid(this.x, this.y);
+                    level.enemyArray[level.enemyArray.length] = new splitFishHigh(this.x, this.y);
+                    level.enemyArray[level.enemyArray.length] = new splitFishLow(this.x, this.y);
+                    kill(i, j);
+                }
+            }
+
+            function splitFishHigh(x, y) {
+                this.name = "Dylan";
+                this.w = 125;
+                this.h = 75;
+                this.x = x;
+                this.y = y + 50;
+                this.color = "purple";
+                this.velx = -25;
+                this.value = 70;
+                this.imgSrcA = "img/spacefish/splitFishSmallA.png";
+                this.imgSrcB = "img/spacefish/splitFishSmallB.png";
+                this.itemDrop = "bouncyBall";
+                this.updatePos = function() {
+                    this.x += this.velx;
+                    this.y -= 3;
+                }
+                this.getHitBy = function(i, j) {
+                    kill(i, j);
+                }
+            }
+
+            function splitFishMid(x, y) {
+                this.name = "Dylan";
+                this.w = 125;
+                this.h = 75;
+                this.x = x;
+                this.y = y + 50;
+                this.color = "purple";
+                this.velx = -25;
+                this.value = 70;
+                this.imgSrcA = "img/spacefish/splitFishSmallA.png";
+                this.imgSrcB = "img/spacefish/splitFishSmallB.png";
+                this.itemDrop = "bouncyBall";
+                this.updatePos = function() {
+                    this.x += this.velx;
+                }
+                this.getHitBy = function(i, j) {
+                    kill(i, j);
+                }
+            }
+
+            function splitFishLow(x, y) {
+                this.name = "Dylan";
+                this.w = 125;
+                this.h = 75;
+                this.x = x;
+                this.y = y + 50;
+                this.color = "purple";
+                this.velx = -25;
+                this.value = 70;
+                this.imgSrcA = "img/spacefish/splitFishSmallA.png";
+                this.imgSrcB = "img/spacefish/splitFishSmallB.png";
+                this.itemDrop = "bouncyBall";
+                this.updatePos = function() {
+                    this.x += this.velx;
+                    this.y += 3;
+                }
+                this.getHitBy = function(i, j) {
+                    kill(i, j);
+                }
+            }
+
+            function spitFireFish() {
+                this.name = "Frank";
+                this.w = 300;
+                this.h = 150;
+                this.x = canvas.width;
+                this.y = Math.random() * canvas.height - this.h;
+                this.color = "pink";
+                this.velx = -15;
+                this.value = 80;
+                this.imgSrcA = "img/spacefish/spitFireFishA.png";
+                this.imgSrcB = "img/spacefish/spitFireFishB.png";
+                this.itemDrop = "drill";
+                this.updatePos = function() {
+                    this.x += this.velx;
+                    if ((this.x < 900 && this.x > 875) || (this.x < 400 && this.x > 375)) {
+                        level.enemyArray[level.enemyArray.length] = new spitFireBullet(this.x, this.y + this.h/2);
+                    }
+                }
+                this.getHitBy = function(i, j) {
+                    kill(i, j);
+                }
+            }
+
+            function spitFireBullet(x, y) {
+                this.w = 10;
+                this.h = 10;
+                this.x = x + 20;
+                this.y = y + 20;
+                this.color = "yellow";
+                this.velx = -40;
+                this.imgSrcA = "img/spacefish/spitFireBulletA.png";
+                this.imgSrcB = "img/spacefish/spitFireBulletB.png";
+                this.updatePos = function() {
+                    this.x += this.velx;
+                }
+                this.getHitBy = function() {
+                    //haha, nothing happens!
+                }
+            }
+
+            function crabCakes() {
+                this.name = "CrabCakes";
+                this.w = 200;
+                this.h = 200;
+                this.x = canvas.width;
+                this.y = Math.random() * canvas.height - this.h;
+                this.color = "white";
+                this.dirx = "left";
+                this.velx = -10 - (Math.random() * 35);
+                this.diry = "up";
+                this.vely = -10 - (Math.random() * 35);
+                this.value = 80;
+                this.imgSrcA = "img/spacefish/crabCakesA.png";
+                this.imgSrcB = "img/spacefish/crabCakesB.png";
+                this.itemDrop = "hellfire";
+                this.updatePos = function() {
+                    this.x += this.velx;
+                    if (this.x < 0 && this.dirx == "left") {
+                        this.dirx = "right";
+                        this.velx = 10 + (Math.random() * 35);
+                    }
+                    if (this.x > canvas.width - this.w && this.dirx == "right") {
+                        this.dirx = "left";
+                        this.velx = - (10 + (Math.random() * 35));
+                    }
+                    this.y += this.vely;
+                    if (this.y < 0 && this.diry == "up") {
+                        this.diry = "down";
+                        this.vely = 10 + (Math.random() * 35);
+                    }
+                    if (this.y > canvas.height - this.h && this.diry == "down") {
+                        this.diry = "up";
+                        this.vely = - (10 + (Math.random() * 35));
+                    }
+                }
+                this.getHitBy = function(i, j) {
+                    kill(i, j);
+                }
+            }
+
+
+
+
+
+            /*
+                *
+                    *   Weapons
+                *
+            */
+
+
+
+
+            function peaShooterBlast() {
+                this.name = "Pea Shooter";
+                this.textColor = "black";
+                this.w = 30;
+                this.h = 10;
+                this.radius = 10;
+                this.y = hero.y + hero.h/2 - this.h/2;
+                this.x = hero.w;
+                this.color = "white";
+                this.velx = 25;
+                this.updatePos = function() {
+                    this.x += this.velx;
+                };
+            }
+
+            function dualLaser(loc) {
+                this.name = "Dual Laser";
+                this.textColor = "yellow";
+                this.type = "weapon";
+                this.timer = 150;
+                this.w = 80;
+                this.h = 10;
+                this.radius = 15;
+                this.y = hero.y + hero.h/2 - this.h/2 + loc;
+                this.x = hero.w;
+                this.color = "blue";
+                this.velx = 25;
+                this.orbImg = "img/spacefish/orblaser.png";
+                this.updatePos = function() {
+                    this.x += this.velx;
+                };
+            }
+
+            function shockwave() {
+                this.name = "Shock Wave";
+                this.textColor = "green";
+                this.type = "weapon";
+                this.timer = 150;
+                this.w = 20;
+                this.h = 70;
+                this.radius = 10;
+                this.y = hero.y;
+                this.x = hero.w;
+                this.color = "yellow";
+                this.velx = 15;
+                this.dir = "down";
+                this.vely = 25;
+                this.velyCount = 0;
+                this.orbImg = "img/spacefish/orbshock.png";
+                this.updatePos = function() {
+                    this.x += this.velx;
+                    if (this.dir == "down") {
+                        this.y += this.vely;
+                        this.velyCount++;
+                        if (this.velyCount >= 4) {this.velyCount = 0; this.dir = "up";}
+                    } else if (this.dir == "up") {
+                        this.y -= this.vely;
+                        this.velyCount++;
+                        if (this.velyCount >= 4) {this.velyCount = 0; this.dir = "down";}
+                    }
+                };
+            }
+
+            function homingMissile() {
+                this.name = "Homing Missile";
+                this.textColor = "green";
+                this.type = "weapon";
+                this.timer = 150;
+                this.w = 60;
+                this.h = 30;
+                this.radius = 30;
+                this.y = hero.y;
+                this.x = hero.w;
+                this.color = "red";
+                this.velx = 20;
+                this.orbImg = "img/spacefish/orbhoming.png";
+                this.updatePos = function() {
+                    if (level.enemyArray.length > 0) {
+                        var enemyYPos = level.enemyArray[level.enemyArray.length-1].y;
+                        this.y += (enemyYPos - this.y) * .05;
+                    }
+                    this.x += this.velx;
+                };
+            }
+
+            function bouncyBall(dir) {
+                this.name = "Bouncy Balls";
+                this.textColor = "#00A79D";
+                this.type = "weapon";
+                this.timer = 150;
+                this.w = 20;
+                this.h = 20;
+                this.radius = 20;
+                this.y = hero.y + hero.h/2 - this.h/2;
+                this.x = hero.w;
+                this.color = "purple";
+                this.velx = 20;
+                this.vely = dir;
+                this.orbImg = "img/spacefish/orbbouncy.png";
+                this.updatePos = function() {
+                    if (this.y > canvas.height || this.y < 0) { this.vely = -this.vely; }
+                    this.x += this.velx;
+                    this.y += this.vely;
+                };
+            }
+
+            function hellfire() {
+                this.name = "Hellfire";
+                this.textColor = "black";
+                this.type = "weapon";
+                this.timer = 50;
+                this.w = 30;
+                this.h = 10;
+                this.radius = 10;
+                this.y = hero.y + hero.h/2 - this.h/2;
+                this.x = hero.w;
+                this.color = "red";
+                this.dirx = "right";
+                this.velx = 10 + (Math.random() * 35);
+                var randdir = (Math.random > .5)? "up" : "down";
+                this.diry = randdir;
+                this.vely = (randdir == "up")? -10 - (Math.random() * 35) : 10 + Math.random() * 35;
+                this.orbImg = "img/spacefish/orbhellfire.png";
+                this.updatePos = function() {
+                    this.x += this.velx;
+                    if (this.x < 0 && this.dirx == "left") {
+                        this.dirx = "right";
+                        this.velx = 10 + (Math.random() * 35);
+                    }
+                    if (this.x > canvas.width - this.w && this.dirx == "right") {
+                        this.dirx = "left";
+                        this.velx = - (10 + (Math.random() * 35));
+                    }
+                    this.y += this.vely;
+                    if (this.y < 0 && this.diry == "up") {
+                        this.diry = "down";
+                        this.vely = 10 + (Math.random() * 35);
+                    }
+                    if (this.y > canvas.height - this.h && this.diry == "down") {
+                        this.diry = "up";
+                        this.vely = - (10 + (Math.random() * 35));
+                    }
+                };
+            }
+
+            function drill() {
+                this.name = "Drill";
+                this.type = "defense";
+                this.w = hero.w * 2;
+                this.h = hero.h;
+                this.y = hero.y;
+                this.x = hero.x;
+                this.color = "orange";
+                this.timer = 500;
+                this.orbImg = "img/spacefish/orbdrill.png";
+                this.updatePos = function() {
+                    // it don't go nowhere!!!
+                };
+            }
+
+            function mega() {
+                this.name = "Mega Boost";
+                this.type = "special";
+                this.orbImg = "img/spacefish/orbmega.png";
+                this.w = hero.w;
+                this.h = hero.h;
+                this.y = hero.y;
+                this.x = hero.x;
+                this.color = "rgba(255, 255, 255, .20)";
+                //this.timer = 100;
+                this.updatePos = function() {
+                    // it don't go nowhere!!!
+                };
+            }
+
+
+
+
+            /*
+                *
+                    *   Events & Actions
+                *
+            */
+
+
+
+
+            document.onkeydown = keyPress;
+            document.onmousemove = moveMouse;
+            document.onmouseup = mousePress;
+
+            function keyPress(e) {
+                if (game.mode == "start") {
+                    clearInterval(openingTimer);
+                    game.mode = "instructions";
+                    initialize();
+                }
+                if (game.mode == "instructions") {
+                    clearInterval(instructionsTimer);
+                    game.mode = "game";
+                    game.level = 1;
+                    playLevel();
+                }
+                if (game.mode == "gameOver") {
+                    clearInterval(endingTimer);
+                    // MARK 5 come here and clear this bug
+                    game.mode = "start";
+                    game.lives = 2;
+                    game.score = 0;
+                    initialize();
+                }
+                if (game.mode == "youWin") {
+                    clearInterval(winTimer);
+                    // MARK 5 come here and clear this bug
+                    game.mode = "start";
+                    game.lives = 2;
+                    game.score = 0;
+                    initialize();
+                }
+            }
+
+            function moveMouse(e) {
+                if (hero) {
+                    if (e.pageY < canvas.height) {
+                        hero.y = e.pageY;
+                    } else {
+                        hero.y = canvas.height - hero.h;
+                    }
+                }
+            }
+
+            function mousePress() {
+               hero.fire();
+            }
+
+
+
+
+
+            /*
+                *
+                    *     Game Actions
+                *
+            */
+
+
+
+
+
+            function countdown() {
+                level.timer -= 1;
+                if(level.timer <= 0) {
+                    game.level++;
+                    if (game.level <= levelData.length-1) {
+                        playLevel();
+                    } else {
+                        youWin();
+                       // game.mode = "youWin";
+                       // initialize();
+                    }
+                }
+            }
+
+            function addEnemy() {
+                var num = Math.floor(Math.random() * levelData[game.level]['enemies'].length);
+                eval("level.enemyArray[level.enemyArray.length] = new " + levelData[game.level]['enemies'][num]);
+            }
+
+            function shiftImgSrc() {
+                level.imgShiftVal = (level.imgShiftVal == 0)? 1 : 0;
+            }
+
+            function kill(i, j) {
+                // remove the blast from blastArray
+                if (j != 100) {
+                    for (i; i < level.blastArray.length - 1; i++) {
+                        level.blastArray[i] = level.blastArray[i+1];
+                    }
+                    level.blastArray.pop();
+                }
+
+                // release the orb
+                if (level.enemyArray[j].itemDrop) {
+                    var go = Math.random() * levelData[game.level]['config'].droprate;
+                    if (go < 1) {
+                        level.orbArray[level.orbArray.length] = new itemOrb(level.enemyArray[j].itemDrop, level.enemyArray[j].x + (level.enemyArray[j].w/2), level.enemyArray[j].y + (level.enemyArray[j].h/2));
+                    } // MARK 1 here is where the item is dropped initially
+                }
+
+                // now do the score and extra life thang
+                game.score += level.enemyArray[j].value;
+                if (game.score >= game.scoreArray[game.scoreArrayPos]) {
+                    game.lives++;
+                    level.extraLifeTextPos = 1;
+                    game.scoreArrayPos++;
+                }
+                level.scoreDisplayArray[level.scoreDisplayArray.length] = {
+                    x : level.enemyArray[j].x + (level.enemyArray[j].w/2),
+                    y : level.enemyArray[j].y + (level.enemyArray[j].h/2),
+                    value : level.enemyArray[j].value,
+                    pos : 0,
+                    alpha : 1
+                };
+
+
+
+                for (j; j < level.enemyArray.length - 1; j++) {
+                    level.enemyArray[j] = level.enemyArray[j+1];
+                }
+                level.enemyArray.pop();
+            }
+
+            function gameOver() {
+                if (level.animInt) { window.clearInterval(level.animInt); }
+                if (level.countInt) { window.clearInterval(level.countInt); }
+                if (level.enemyInt) { window.clearInterval(level.enemyInt); }
+                level.blastArray = [];
+                level.enemyArray = [];
+                game.scoreArrayPos = 0;
+
+                game.mode = "gameOver";
+
+                initialize();
+            }
+
+
+            function youWin() {
+                if (level.animInt) { window.clearInterval(level.animInt); }
+                if (level.countInt) { window.clearInterval(level.countInt); }
+                if (level.enemyInt) { window.clearInterval(level.enemyInt); }
+                level.blastArray = [];
+                level.enemyArray = [];
+                game.scoreArrayPos = 0;
+
+                game.mode = "youWin";
+
+                initialize();
+            }
+
+        
+        
+        
+        
+        
+        
+
+            /*
+                *
+                    *  Game State Functions
+                *
+            */
+        
+        
+        
+        
+        
+        
+            function initialize() {
+                canvas = document.getElementById("canvas");
+                ctx  = canvas.getContext("2d");
+
+                bufferCanvas = document.createElement("canvas");
+                bufferCanvasCtx = bufferCanvas.getContext("2d");
+                bufferCanvasCtx.canvas.width = ctx.canvas.width;
+                bufferCanvasCtx.canvas.height = ctx.canvas.height;
+
+                //initialize game variables
+                game.score = 0;
+                game.level = 0;
+                game.lives = 2;
+
+                if (game.mode == "start") {
+                    game.score = 0;
+                    openingTimer = setInterval(drawOpening, 300);
+                }
+
+                if (game.mode == "instructions") {
+                    instructionsTimer = setInterval(drawInstructions, 300);
+                }
+
+                if (game.mode == "gameOver") {
+                    endingTimer = setInterval(drawEnding, 300);
+                }
+
+                if (game.mode == "youWin") {
+                    winTimer = setInterval(drawWinScreen, 300);
+                }
+            }
+
+            function playLevel() {
+                hero = new spaceShip();
+                level.timer = levelData[game.level]['config'].timer;
+
+                // clear compound variables
+                if (level.animInt) { window.clearInterval(level.animInt); }
+                if (level.countInt) { window.clearInterval(level.countInt); }
+                if (level.enemyInt) { window.clearInterval(level.enemyInt); }
+                if (level.imgShiftInt) { window.clearInterval(level.imgShiftInt); }
+                level.blastArray = [];
+                level.scoreDisplayArray = [];
+                level.enemyArray = [];
+                level.orbArray = [];
+                level.xBackgroundShift = 0;
+
+                // level splash screen
+                game.mode = "levelSplash";
+                levelSplash();
+
+                // play the level
+                game.mode = "game";
+
+                setTimeout(function() {
+                    level.animInt = setInterval(animate, 30);
+                    level.countInt = setInterval(countdown, 1000);
+                    level.enemyInt = setInterval(addEnemy, levelData[game.level]['config'].genrate);
+                    level.imgShiftInt = setInterval(shiftImgSrc, 500);
+                }, 1000);
+            }
+
+
+
+
+
+
+            /*
+                 *
+                     *  GAME SCREENS
+                 *
+             */
+
+
+
+
+
+            function clear() {
+                bufferCanvasCtx.fillStyle = "black";
+                bufferCanvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            function drawOpening() {
+                ctx.save();
+                clear();
+
+                var img = new Image();
+                img.src = "img/spacefish/startScreen.png";
+                bufferCanvasCtx.drawImage(img, 0, 0);
+
+                bufferCanvasCtx.fillStyle = "#00A651";
+                bufferCanvasCtx.font = "25pt Arial";
+                bufferCanvasCtx.fillText(game.startText, canvas.width/2 - 180, canvas.height/2 + 230);
+
+                if (game.startText == "Press any key to start")  { game.startText = "";}
+                else { game.startText = "Press any key to start"; }
+
+                // copy the entire rendered image from the bugger canvas to the visible one
+                ctx.drawImage(bufferCanvas, 0, 0, bufferCanvas.width, bufferCanvas.height);
+                ctx.restore();
+            }
+
+            function drawInstructions() {
+                ctx.save();
+                clear();
+
+                bufferCanvasCtx.fillStyle = "white";
+                bufferCanvasCtx.font = "50pt Arial";
+                bufferCanvasCtx.fillText("INSTRUCTIONS", canvas.width/2 - 200, canvas.height/2 -130);
+
+                bufferCanvasCtx.font = "30pt Arial";
+                bufferCanvasCtx.fillText("by M.A.R.K.", canvas.width/2 - 120, canvas.height/2 -60);
+
+                bufferCanvasCtx.fillStyle = "white";
+                bufferCanvasCtx.font = "25pt Arial";
+                bufferCanvasCtx.fillText(game.startText, canvas.width/2 - 180, canvas.height/2 + 30);
+
+                if (game.startText == "Press any key to start")  { game.startText = "";}
+                else { game.startText = "Press any key to start"; }
+
+                // copy the entire rendered image from the bugger canvas to the visible one
+                ctx.drawImage(bufferCanvas, 0, 0, bufferCanvas.width, bufferCanvas.height);
+                ctx.restore();
+            }
+
+            function drawEnding() {
+                ctx.save();
+                clear();
+
+                var img = new Image();
+                img.src = "img/spacefish/youLose.png";
+                bufferCanvasCtx.drawImage(img, 0, 0);
+
+                bufferCanvasCtx.fillStyle = "#3C2415";
+                bufferCanvasCtx.font = "30pt Arial";
+                bufferCanvasCtx.fillText(game.restartText, canvas.width/2 + 100, canvas.height/2 + 240);
+
+                if (game.restartText == "Press any key to restart")  { game.restartText = "";}
+                else { game.restartText = "Press any key to restart"; }
+
+                // copy the entire rendered image from the bugger canvas to the visible one
+                ctx.drawImage(bufferCanvas, 0, 0, bufferCanvas.width, bufferCanvas.height);
+                ctx.restore();
+            }
+
+            function drawWinScreen() {
+                ctx.save();
+                clear();
+
+                var img = new Image();
+                img.src = "img/spacefish/youWin.png";
+                bufferCanvasCtx.drawImage(img, 0, 0);
+
+                bufferCanvasCtx.fillStyle = "black";
+                bufferCanvasCtx.font = "30pt Arial";
+                bufferCanvasCtx.fillText(game.restartText, canvas.width/2 + 100, canvas.height/2 + 240);
+
+                if (game.restartText == "Press any key to restart")  { game.restartText = "";}
+                else { game.restartText = "Press any key to restart"; }
+
+                // copy the entire rendered image from the bugger canvas to the visible one
+                ctx.drawImage(bufferCanvas, 0, 0, bufferCanvas.width, bufferCanvas.height);
+                ctx.restore();
+            }
+
+            function levelSplash() {
+                ctx.save();
+                clear();
+
+                var img = new Image();
+                img.src = levelData[game.level]['background'];
+                bufferCanvasCtx.drawImage(img, 0, 0);
+
+                bufferCanvasCtx.fillStyle = "rgba(0, 0, 0, .75)";
+                bufferCanvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+                bufferCanvasCtx.fillStyle = "white";
+                bufferCanvasCtx.font = "40pt Arial";
+
+                if (game.level <= levelData.length-1) { var levelText = "Level " + game.level; }
+                else { var levelText = "Final Level"; }
+
+                bufferCanvasCtx.fillText(levelText, bufferCanvas.width/2 - 100, bufferCanvas.height/2 - 100);
+
+                var thisLevelsEnemies = levelData[game.level]['enemies'].length;
+                var displacement = 50;
+                var enemyName = "";
+                bufferCanvasCtx.font = "20pt Arial";
+                for (var i = 1; i <= levelData[game.level]['enemies'].length; i++) {
+                   displacement += 250;
+                   enemyName = eval("new " + levelData[game.level]['enemies'][i-1] + "()");
+                   bufferCanvasCtx.fillText(enemyName.name, displacement, bufferCanvas.height/2 + 300);
+
+                   var img = new Image();
+                   img.src = enemyName.imgSrcA;
+                   bufferCanvasCtx.drawImage(img, displacement - enemyName.w/2 + 40, bufferCanvas.height/2 + 250 - enemyName.h);
+                }
+
+                ctx.drawImage(bufferCanvas, 0, 0, bufferCanvas.width, bufferCanvas.height);
+                ctx.restore();
+            }
+
+
+
+
+
+
+            /*
+                *
+                  * GAME ANIMATION
+                *
+             */
+
+
+
+
+
+            function animate() {
+                Update();
+                Render();
+            }
+
+            function Update() {
+                updateBlastArray();
+                updateEnemyPosition();
+                seeIfEnemyGetsHitByBlast();
+                seeIfHeroGetsHitByEnemy();
+                updateOrbPosition();
+                updateDefenseTimer();
+                updateWeaponTimer();
+                updateScoreDisplay();
+                updateExtraLifeDisplay();
+                level.xBackgroundShift += .25;
+            }
+
+            function Render() {
+                ctx.save();
+                blank();
+                var heroImg = new Image();
+                renderHero(heroImg);
+                renderHeroBlasts();
+                renderEnemies();
+                renderOrbs();
+                renderShieldTimer();
+                renderWeaponTimer();
+                renderScoreAndExtraLives();
+                renderLevelScoreTimerAndLives(heroImg);
+
+                // copy the entire rendered image from the bugger canvas to the visible one
+                ctx.drawImage(bufferCanvas, 0, 0, bufferCanvas.width, bufferCanvas.height);
+                ctx.restore();
+            }
+
+
+
+
+
+            /*
+                 *
+                     * Update Functions
+                 *
+             */
+
+
+
+
+
+
+            function updateBlastArray() {
+                for (var i = 0; i < level.blastArray.length; i++) {
+                    level.blastArray[i].updatePos();
+                    if(level.blastArray[i].x > canvas.width) {
+                        //level.blastArray.shift();
+                        for (i; i < level.blastArray.length; i++) {
+                            level.blastArray[i] = level.blastArray[i + 1];
+                        }
+                        level.blastArray.pop();
+                        //foo.pop();
+                        //console.log(foo);
+                    }
+                }
+            }
+            function updateEnemyPosition() {
+                for (var i = 0; i < level.enemyArray.length; i++) {
+                    level.enemyArray[i].updatePos();
+                }
+            }
+            function seeIfEnemyGetsHitByBlast() {
+                for (var i = 0; i < level.blastArray.length; i++) {
+                    for (var j = 0; j < level.enemyArray.length; j++) {
+                        if (
+                                (level.blastArray[i].x + level.blastArray[i].w > level.enemyArray[j].x) &&
+                                        (level.blastArray[i].x < level.enemyArray[j].x + level.enemyArray[j].w) &&
+                                        (level.blastArray[i].y + level.blastArray[i].h > level.enemyArray[j].y) &&
+                                        (level.blastArray[i].y < level.enemyArray[j].y + level.enemyArray[j].h)
+                                ) { level.enemyArray[j].getHitBy(i, j); }
+                    }
+                }
+            }
+            function seeIfHeroGetsHitByEnemy() {
+                for (var i = 0; i < level.enemyArray.length; i++) {
+                    if (
+                            (hero.x + (hero.w/2) > level.enemyArray[i].x) &&
+                                    (hero.x < level.enemyArray[i].x + level.enemyArray[i].w) &&
+                                    (hero.y + hero.h > level.enemyArray[i].y) &&
+                                    (hero.y < level.enemyArray[i].y + level.enemyArray[i].h)
+                            ) {
+                        switch (hero.defense) {
+                            case "drill":
+                                level.enemyArray[i].getHitBy(0, i);
+                                break;
+                            case "mega":
+                                level.enemyArray[i].getHitBy(0, i);
+                                hero.defense = "";
+                                break;
+                            default :
+                                hero.die();
+                                break;
+                        }
+                    }
+                }
+            }
+            function updateOrbPosition() {
+                for (var i = 0; i < level.orbArray.length; i++) {
+                    level.orbArray[i].updatePos();
+                    if (
+                            (hero.x + hero.w > level.orbArray[i].x) &&
+                                    (hero.x < level.orbArray[i].x + level.orbArray[i].radius) &&
+                                    (hero.y + hero.h > level.orbArray[i].y) &&
+                                    (hero.y < level.orbArray[i].y + level.orbArray[i].radius)
+                            ) {
+                        hero.itemUpdate(level.orbArray[i].weapon);
+                        level.orbArray.shift();
+                    }
+                }
+            }
+            function updateDefenseTimer() {
+                if (hero.defenseTimer > 0) {
+                    hero.defenseTimer--;
+                    if (hero.defenseTimer <= 0) {
+                        hero.defense = "";
+                        hero.w = 120;
+                        hero.color = "yellow";
+                    }
+                }
+            }
+            function updateWeaponTimer() {
+                if (hero.weaponTimer > 0) {
+                    hero.weaponTimer--;
+                    if (hero.weaponTimer <= 0) {
+                        hero.weapon = "peaShooter";
+                        hero.color = "yellow";
+                    }
+                }
+            }
+            function updateScoreDisplay() {
+                for (var i = 0; i < level.scoreDisplayArray.length; i++) {
+                    level.scoreDisplayArray[i].alpha -= .04;
+                    level.scoreDisplayArray[i].pos += 10;
+                    if (level.scoreDisplayArray[i].pos > 200) { level.scoreDisplayArray.shift(); }
+                }
+            }
+            function updateExtraLifeDisplay() {
+                if (level.extraLifeTextPos > 0) {
+                    level.extraLifeTextPos += 5;
+                    if (level.extraLifeTextPos > 100) {
+                        level.extraLifeTextPos = 0;
+                    }
+                }
+            }
+
+
+
+
+
+
+
+            /*
+                 *
+                     *   Render Functions
+                 *
+             */
+
+
+
+
+
+
+
+            function blank() {
+                if (game.level > 0) {
+                    var backgroundImg = new Image();
+                    backgroundImg.src = levelData[game.level]['background'];
+                    bufferCanvasCtx.drawImage(backgroundImg, level.xBackgroundShift, 0, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+                } else {
+                    bufferCanvasCtx.fillStyle = "#000";
+                    bufferCanvasCtx.fillRect(0,0,bufferCanvasCtx.canvas.width, bufferCanvasCtx.canvas.height);
+                }
+            }
+
+
+            function renderHero(heroImg) {
+                if (hero.defense == "drill") {
+                    heroImg.src = (level.imgShiftVal == 0)? hero.imgSrcShieldA : hero.imgSrcShieldB;
+                } else if (hero.defense == "mega") {
+                    heroImg.src = (level.imgShiftVal == 0)? hero.imgSrcMegaA : hero.imgSrcMegaB;
+                } else {
+                    heroImg.src = (level.imgShiftVal == 0)? hero.imgSrcA : hero.imgSrcB;
+                }
+                bufferCanvasCtx.drawImage(heroImg, hero.x, hero.y);
+            }
+            function renderHeroBlasts() {
+                bufferCanvasCtx.save();
+                for (var i = 0; i < level.blastArray.length; i++) {
+                    bufferCanvasCtx.fillStyle = level.blastArray[i].color;
+                    //bufferCanvasCtx.fillRect(blastArray[i].x, blastArray[i].y, blastArray[i].w, blastArray[i].h);
+                    bufferCanvasCtx.beginPath();
+                    bufferCanvasCtx.arc(level.blastArray[i].x, level.blastArray[i].y, level.blastArray[i].radius, 0, 2 * Math.PI);
+                    bufferCanvasCtx.fill();
+                }
+                bufferCanvasCtx.restore();
+            }
+            function renderEnemies() {
+                for (var i = 0; i < level.enemyArray.length; i++) {
+                    var img = new Image();
+                    img.src = (level.imgShiftVal == 0)? level.enemyArray[i].imgSrcA : level.enemyArray[i].imgSrcB;
+                    bufferCanvasCtx.drawImage(img, level.enemyArray[i].x, level.enemyArray[i].y);
+                }
+            }
+            function renderOrbs() {
+                for (var i = 0; i < level.orbArray.length; i++) {
+                    /* bufferCanvasCtx.fillStyle = level.orbArray[i].color;
+                    bufferCanvasCtx.beginPath();
+                    bufferCanvasCtx.arc(level.orbArray[i].x, level.orbArray[i].y, level.orbArray[i].radius, 0, 2 * Math.PI);
+                    bufferCanvasCtx.fill(); */
+
+                    var img = new Image();
+                    img.src = level.orbArray[i].orbImg;
+                    bufferCanvasCtx.drawImage(img, level.orbArray[i].x, level.orbArray[i].y);
+                }
+            }
+            function renderShieldTimer() {
+                // Shield Timer
+                var barHeight = (hero.weaponTimer > 0)? 60 : 30;
+                if (hero.defense == "drill") {
+                    bufferCanvasCtx.fillStyle = "orange";
+                    bufferCanvasCtx.fillRect(((hero.maxDefenseTimer - hero.defenseTimer)* (canvas.width/hero.maxDefenseTimer))/2, canvas.height-barHeight, (hero.defenseTimer * (canvas.width/hero.maxDefenseTimer)), 30);
+                    bufferCanvasCtx.fillStyle = "white";
+                    bufferCanvasCtx.font = "20pt Arial";
+                    bufferCanvasCtx.fillText("Drill", canvas.width/2 - 30, canvas.height - (barHeight - 25));
+                } else if (hero.defense == "mega") {
+                    bufferCanvasCtx.fillStyle = "rgba(255,255,255,.3)";
+                    bufferCanvasCtx.fillRect(0, canvas.height - barHeight, canvas.width, 30);
+                    bufferCanvasCtx.fillStyle = "white";
+                    bufferCanvasCtx.font = "20pt Arial";
+                    bufferCanvasCtx.fillText("Mega Mode", canvas.width/2 - 30, canvas.height - (barHeight - 25));
+
+                }
+            }
+            function renderWeaponTimer() {
+                if (hero.weaponTimer > 0) {
+                    eval("foo = new " + hero.weapon + ";");
+                    bufferCanvasCtx.fillStyle = foo.color;
+                    //bufferCanvasCtx.fillStyle = "red";
+                    bufferCanvasCtx.fillRect(((hero.maxWeaponTimer - hero.weaponTimer)* (canvas.width/hero.maxWeaponTimer))/2, canvas.height-30, (hero.weaponTimer * (canvas.width/hero.maxWeaponTimer)), 30);
+                    eval("var weapon = new " + hero.weapon + ";");
+                    bufferCanvasCtx.fillStyle = weapon.textColor;
+                    bufferCanvasCtx.font = "20pt Arial";
+                    bufferCanvasCtx.fillText(weapon.name, canvas.width/2 - 30, canvas.height - 5);
+                }
+            }
+            function renderScoreAndExtraLives() {
+                // Dynamic Score Display
+                bufferCanvasCtx.font = "20pt Arial";
+                for (var i = 0; i < level.scoreDisplayArray.length; i++) {
+                    bufferCanvasCtx.fillStyle = "rgba(255, 255, 255, " + level.scoreDisplayArray[i].alpha + ")";
+                    bufferCanvasCtx.fillText(level.scoreDisplayArray[i].value, level.scoreDisplayArray[i].x, level.scoreDisplayArray[i].y - level.scoreDisplayArray[i].pos);
+                }
+
+                // Extra Life
+                if (level.extraLifeTextPos > 0) {
+                    bufferCanvasCtx.fillStyle = "#DDD";
+                    bufferCanvasCtx.font = "30pt Arial";
+                    bufferCanvasCtx.fillText("EXTRA LIFE!", 900, 160-level.extraLifeTextPos);
+                }
+            }
+            function renderLevelScoreTimerAndLives(heroImg) {
+                // Level
+                bufferCanvasCtx.fillStyle = "#DDD";
+                bufferCanvasCtx.font = "20pt Arial";
+                var levelText = "Level " + game.level;
+                bufferCanvasCtx.fillText(levelText, 10, 45);
+                // Score Count
+                bufferCanvasCtx.fillStyle = "#DDD";
+                bufferCanvasCtx.font = "20pt Arial";
+                var scoreText = "Score: " + game.score;
+                bufferCanvasCtx.fillText(scoreText, 250, 45);
+                // Timer
+                bufferCanvasCtx.fillStyle = "#DDD";
+                bufferCanvasCtx.font = "30pt Arial";
+                bufferCanvasCtx.fillText(level.timer, canvas.width/2 - 20, 50);
+                // Lives
+                bufferCanvasCtx.fillStyle = (level.extraLifeTextPos > 0)? "#FFF" : "#DDD";
+                bufferCanvasCtx.drawImage(heroImg, 900, 15);
+                bufferCanvasCtx.font = (level.extraLifeTextPos > 0)? "35pt Arial" : "30pt Arial";
+                var livesText = " x " + game.lives;
+                bufferCanvasCtx.fillText(livesText, 1025, 57);
+            }
+
+
+
+        /*
+         *
+         *
+         *   Level Data
+         *   timer: max amount of time per level in seconds
+         *   genrate: delay between enemy generation in milliseconds
+         *   droprate: likelihood of a weapon being dropped in a certain level.
+         *       this is calculated as 1/droprate, so a droprate of 1 has an effective droprate of 100%
+         *       and a droprate of 1.5 has an effective droprate of 2/3.
+         *
+         *
+         */
+
+
+
+        var levelData = [];
+        levelData[1] = [];
+        levelData[1]['enemies'] = ["bigBloater", "speedyBlue"];
+        //levelData[1]['background'] = "img/spacefish/Outer Space Wallpapers/Outer Space-wallpaper-1600x900-013.jpg";
+        levelData[1]['background'] = "img/spacefish/seasky.png";
+        levelData[1]['config'] = { timer : 15, genrate : 700, droprate : 1, default : "peaShooter" };
+        levelData[2] = [];
+        levelData[2]['enemies'] = ["bigBloater", "speedyBlue", "sinusoidSwimmer"];
+        //levelData[2]['background'] = "img/spacefish/Outer-Space-Artwork.jpg";
+        levelData[2]['background'] = "img/spacefish/planetview.png";
+        levelData[2]['config'] = { timer : 20, genrate : 667, droprate : 1.2, default : "peaShooter" };
+        levelData[3] = [];
+        levelData[3]['enemies'] = ["bigBloater", "speedyBlue", "sinusoidSwimmer"];
+        //levelData[3]['background'] = "img/spacefish/AGHeads.jpg";
+        //levelData[3]['background'] = "img/spacefish/Outer-Space-Artwork.jpg";
+        levelData[3]['background'] = "img/spacefish/planets.jpg";
+        levelData[3]['config'] = { timer : 25, genrate : 663, droprate : 1.4, default : "peaShooter" };
+        levelData[4] = [];
+        levelData[4]['enemies'] = ["speedyBlue", "sinusoidSwimmer", "homingFish"];
+        //levelData[4]['background'] = "img/spacefish/Outer Space Wallpapers/Outer Space-wallpaper-1600x900-010.jpg";
+        levelData[4]['background'] = "img/spacefish/alienaudience.jpg";
+        levelData[4]['config'] = { timer : 30, genrate : 600, droprate : 1.6, default : "peaShooter" };
+        levelData[5] = [];
+        levelData[5]['enemies'] = ["sinusoidSwimmer", "homingFish", "splitFishBig"];
+        levelData[5]['background'] = "img/spacefish/blackhole.jpg";
+        levelData[5]['config'] = { timer : 35, genrate : 567, droprate : 1.8, default : "peaShooter"};
+        levelData[6] = [];
+        levelData[6]['enemies'] = ["homingFish", "splitFishBig", "spitFireFish"];
+        levelData[6]['background'] = "img/spacefish/trippyeyeballs.png";
+        levelData[6]['config'] = { timer : 40, genrate : 533, droprate : 2, default : "dualLaser" };
+        levelData[7] = [];
+        levelData[7]['enemies'] = ["splitFishBig", "spitFireFish", "crabCakes"];
+        levelData[7]['background'] = "img/spacefish/AGHeads.jpg";
+        levelData[7]['config'] = { timer : 45, genrate : 467, droprate : 1, default : "dualLaser" };
+
+
+        </script>
+        <style>
+            canvas#canvas {
+                background-color: #000;
+            }
+        </style>
+    </head>
+    <body style="background-color: #000;" onload="initialize();">
+
+        <!-- Add your site or application content here -->
+        <br/>
+
+        <div style="width: 100%; text-align:center">
+            <canvas style="display:inline;" id="canvas" height="700" width="1200">Joo cannot see me!</canvas>
+        </div>
+
+        <br/><br/>
+
+        <h1>Battle through seven levels of space fishiness!</h1>
+        <h2>Move mouse up and down to move the spaceship, and click to fire.</h2>
+        <h2>Shoot fish and collect their orbs to gain their powers!</h2>
+
+        <audio controls="controls">
+            <source src="assets/spacefish/SalmonDance.m4a" type="audio/mpeg">
+        </audio>
+
+        <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
+        <script>window.jQuery || document.write('<script src="js/vendor/jquery-1.8.2.min.js"><\/script>')</script>
+        <script src="js/plugins.js"></script>
+        <script src="js/initialize.js"></script>
+
+
+
+        <!-- Google Analytics: change UA-XXXXX-X to be your site's ID. -->
+        <script>
+            var _gaq=[['_setAccount','UA-XXXXX-X'],['_trackPageview']];
+            (function(d,t){var g=d.createElement(t),s=d.getElementsByTagName(t)[0];
+            g.src=('https:'==location.protocol?'//ssl':'//www')+'.google-analytics.com/ga.js';
+            s.parentNode.insertBefore(g,s)}(document,'script'));
+        </script>
+    </body>
+</html>
